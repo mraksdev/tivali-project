@@ -1,4 +1,4 @@
-"""Tests for the Auth signup endpoint."""
+"""Tests for the Fcle Auth registration endpoints."""
 
 import json
 import re
@@ -8,6 +8,9 @@ import pytest
 import requests
 
 TOKEN_PATTERN = re.compile(r'^[a-f0-9]{32}$')
+VALID_PASSWORD = 'P@ssw0rd123'
+WRONG_PASSWORD = 'WrongP@ssw0rd'
+JWT_PART_COUNT = 3
 
 
 def decode_signup_response(response: requests.Response) -> dict[str, str]:
@@ -259,3 +262,93 @@ class TestAuthSignup:
             'user.signup.resetTokenSent',
         )
         assert body['error']['values']['email'] == signed_up_user['email']
+
+
+class TestSetPassword:
+    """Tests for the POST /api/Auth/set-password endpoint."""
+
+    def test_set_password_success(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+    ) -> None:
+        """Set a password for a signed up user and verify the token."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/set-password'
+        payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': unique_nickname,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert response.status_code == HTTPStatus.OK
+        token = response.json()['token']
+        assert len(token.split('.')) == JWT_PART_COUNT
+
+    def test_login_with_new_password(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+    ) -> None:
+        """Log in with the password set during registration."""
+        # Arrange.
+        set_password_url = f'{base_url}/api/Auth/set-password'
+        login_url = f'{base_url}/api/Auth/login'
+        set_password_payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': unique_nickname,
+        }
+        api_session.post(set_password_url, json=set_password_payload)
+        login_payload = {
+            'email': signed_up_user['email'],
+            'password': VALID_PASSWORD,
+        }
+
+        # Act.
+        response = api_session.post(login_url, json=login_payload)
+
+        # Assert.
+        assert response.status_code == HTTPStatus.OK
+        token = response.json()['token']
+        assert len(token.split('.')) == JWT_PART_COUNT
+
+    def test_login_with_wrong_password(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+    ) -> None:
+        """Reject a login attempt with an incorrect password."""
+        # Arrange.
+        set_password_url = f'{base_url}/api/Auth/set-password'
+        login_url = f'{base_url}/api/Auth/login'
+        set_password_payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': unique_nickname,
+        }
+        api_session.post(set_password_url, json=set_password_payload)
+        login_payload = {
+            'email': signed_up_user['email'],
+            'password': WRONG_PASSWORD,
+        }
+
+        # Act.
+        response = api_session.post(login_url, json=login_payload)
+
+        # Assert.
+        assert_error_response(
+            response,
+            HTTPStatus.GONE,
+            'user.loginMethod.invalid',
+        )
