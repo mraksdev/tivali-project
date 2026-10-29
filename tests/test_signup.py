@@ -482,3 +482,94 @@ class TestSetPassword:
             HTTPStatus.CONFLICT,
             error_code,
         )
+
+    def test_set_password_invalid_token(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        unique_nickname: str,
+    ) -> None:
+        """Reject a token that the server never issued."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/set-password'
+        payload = {
+            'token': 'deadbeef',
+            'newPassword': VALID_PASSWORD,
+            'nickname': unique_nickname,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert_error_response(
+            response,
+            HTTPStatus.GONE,
+            'user.token.invalid',
+        )
+
+    def test_set_password_reused_token(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+    ) -> None:
+        """Reject a second password setup with the same token."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/set-password'
+        payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': unique_nickname,
+        }
+        api_session.post(url, json=payload)
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert_error_response(
+            response,
+            HTTPStatus.GONE,
+            'user.token.invalid',
+        )
+
+    @pytest.mark.parametrize(
+        ('dropped_fields', 'error_code'),
+        [
+            (('token', 'newPassword', 'nickname'), 'user.token.notNull'),
+            (('token',), 'user.token.notNull'),
+            (('newPassword',), 'user.newPassword.notNull'),
+        ],
+        ids=['empty-body', 'token', 'password'],
+    )
+    def test_set_password_missing_fields(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+        dropped_fields: tuple[str, ...],
+        error_code: str,
+    ) -> None:
+        """Reject a request that lacks a required field."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/set-password'
+        payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': unique_nickname,
+        }
+        for field in dropped_fields:
+            payload.pop(field)
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert_error_response(
+            response,
+            HTTPStatus.CONFLICT,
+            error_code,
+        )
