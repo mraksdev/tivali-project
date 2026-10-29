@@ -11,6 +11,7 @@ TOKEN_PATTERN = re.compile(r'^[a-f0-9]{32}$')
 VALID_PASSWORD = 'P@ssw0rd123'
 WRONG_PASSWORD = 'WrongP@ssw0rd'
 JWT_PART_COUNT = 3
+NICKNAME_MAX_LENGTH = 50
 
 
 def decode_signup_response(response: requests.Response) -> dict[str, str]:
@@ -351,4 +352,133 @@ class TestSetPassword:
             response,
             HTTPStatus.GONE,
             'user.loginMethod.invalid',
+        )
+
+    @pytest.mark.parametrize(
+        ('password', 'error_code'),
+        [
+            ('123', 'user.password.isShort'),
+            ('Abc12', 'user.password.isShort'),
+            ('abcdef', 'user.password.notStrong'),
+            ('pass word', 'user.password.forbiddenSymbols'),
+        ],
+        ids=[
+            'three-characters',
+            'below-min-length',
+            'only-lowercase',
+            'space',
+        ],
+    )
+    def test_set_password_weak_password(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+        password: str,
+        error_code: str,
+    ) -> None:
+        """Reject a password that does not meet the strength rules."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/set-password'
+        payload = {
+            'token': signed_up_user['token'],
+            'newPassword': password,
+            'nickname': unique_nickname,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        body = assert_error_response(
+            response,
+            HTTPStatus.CONFLICT,
+            error_code,
+        )
+        assert body['error']['values'] == password
+
+    def test_set_password_min_password_length(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+    ) -> None:
+        """Accept a password of exactly the minimum allowed length."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/set-password'
+        payload = {
+            'token': signed_up_user['token'],
+            'newPassword': 'Abc123',
+            'nickname': unique_nickname,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert response.status_code == HTTPStatus.OK
+
+    @pytest.mark.parametrize(
+        'nickname_length',
+        [1, NICKNAME_MAX_LENGTH],
+        ids=['one-character', 'max-length'],
+    )
+    def test_set_password_nickname_boundaries(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        nickname_length: int,
+    ) -> None:
+        """Accept nicknames at the allowed length boundaries."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/set-password'
+        payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': 'a' * nickname_length,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert response.status_code == HTTPStatus.OK
+
+    @pytest.mark.parametrize(
+        ('nickname', 'error_code'),
+        [
+            ('a' * (NICKNAME_MAX_LENGTH + 1), 'user.nickname.tooLong'),
+            (None, 'user.nickname.notNull'),
+            ('', 'user.nickname.isRequired'),
+        ],
+        ids=['too-long', 'null', 'empty-string'],
+    )
+    def test_set_password_invalid_nickname(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        nickname: str | None,
+        error_code: str,
+    ) -> None:
+        """Reject a nickname that is missing or too long."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/set-password'
+        payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': nickname,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert_error_response(
+            response,
+            HTTPStatus.CONFLICT,
+            error_code,
         )
