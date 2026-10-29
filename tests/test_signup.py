@@ -608,3 +608,177 @@ class TestAuthLogin:
             HTTPStatus.GONE,
             'user.loginMethod.invalid',
         )
+
+    @pytest.mark.parametrize(
+        'payload',
+        [
+            {},
+            {'password': VALID_PASSWORD},
+            {'email': None, 'password': VALID_PASSWORD},
+        ],
+        ids=['empty-body', 'no-email', 'null-email'],
+    )
+    def test_login_missing_email(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        payload: dict,
+    ) -> None:
+        """Reject a login request without a usable email."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/login'
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert_error_response(
+            response,
+            HTTPStatus.CONFLICT,
+            'user.email.notNull',
+        )
+
+    @pytest.mark.parametrize(
+        'password',
+        [None, ''],
+        ids=['null-password', 'empty-password'],
+    )
+    def test_login_missing_password(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        password: str | None,
+    ) -> None:
+        """Reject a login request without a usable password."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/login'
+        payload = {
+            'email': signed_up_user['email'],
+            'password': password,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert_error_response(
+            response,
+            HTTPStatus.CONFLICT,
+            'user.password.isRequired',
+        )
+
+    @pytest.mark.parametrize(
+        'email',
+        ['plainaddress', 'user@', 'user@example.c'],
+        ids=['no-at-sign', 'no-domain', 'short-tld'],
+    )
+    def test_login_invalid_email_format(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        email: str,
+    ) -> None:
+        """Reject an email that does not match the required format."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/login'
+        payload = {
+            'email': email,
+            'password': VALID_PASSWORD,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        body = assert_error_response(
+            response,
+            HTTPStatus.CONFLICT,
+            'user.email.isInvalid',
+        )
+        assert body['error']['values'] == email
+
+    def test_login_unknown_email(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        unique_email: str,
+    ) -> None:
+        """Reject a login for an email without an account."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/login'
+        payload = {
+            'email': unique_email,
+            'password': VALID_PASSWORD,
+        }
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        assert_error_response(
+            response,
+            HTTPStatus.GONE,
+            'user.loginMethod.invalid',
+        )
+
+    def test_login_with_timezone(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+    ) -> None:
+        """Log in with the optional timezone field."""
+        # Arrange.
+        set_password_url = f'{base_url}/api/Auth/set-password'
+        login_url = f'{base_url}/api/Auth/login'
+        set_password_payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': unique_nickname,
+        }
+        api_session.post(set_password_url, json=set_password_payload)
+        login_payload = {
+            'email': signed_up_user['email'],
+            'password': VALID_PASSWORD,
+            'timezone': 'Europe/Moscow',
+        }
+
+        # Act.
+        response = api_session.post(login_url, json=login_payload)
+
+        # Assert.
+        assert response.status_code == HTTPStatus.OK
+        token = response.json()['token']
+        assert len(token.split('.')) == JWT_PART_COUNT
+
+    def test_login_uppercase_email(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        signed_up_user: dict[str, str],
+        unique_nickname: str,
+    ) -> None:
+        """Log in with an email written in upper case."""
+        # Arrange.
+        set_password_url = f'{base_url}/api/Auth/set-password'
+        login_url = f'{base_url}/api/Auth/login'
+        set_password_payload = {
+            'token': signed_up_user['token'],
+            'newPassword': VALID_PASSWORD,
+            'nickname': unique_nickname,
+        }
+        api_session.post(set_password_url, json=set_password_payload)
+        login_payload = {
+            'email': signed_up_user['email'].upper(),
+            'password': VALID_PASSWORD,
+        }
+
+        # Act.
+        response = api_session.post(login_url, json=login_payload)
+
+        # Assert.
+        assert response.status_code == HTTPStatus.OK
+        token = response.json()['token']
+        assert len(token.split('.')) == JWT_PART_COUNT
