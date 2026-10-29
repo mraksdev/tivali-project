@@ -228,3 +228,32 @@ class TestAuthSignup:
         body = response.json()
         assert body['status'] == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
         assert body['title'] == 'Unsupported Media Type'
+
+    @pytest.mark.parametrize(
+        'uppercase',
+        [False, True],
+        ids=['same-case', 'uppercase'],
+    )
+    def test_signup_duplicate_email(
+        self,
+        api_session: requests.Session,
+        base_url: str,
+        registered_user: str,
+        uppercase: bool,
+    ) -> None:
+        """Reject a second signup for an already registered email."""
+        # Arrange.
+        url = f'{base_url}/api/Auth/signup'
+        email = registered_user.upper() if uppercase else registered_user
+        payload = {'email': email}
+
+        # Act.
+        response = api_session.post(url, json=payload)
+
+        # Assert.
+        body = assert_error_response(
+            response,
+            HTTPStatus.TOO_MANY_REQUESTS,
+            'user.signup.resetTokenSent',
+        )
+        assert body['error']['values']['email'] == registered_user

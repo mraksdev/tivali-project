@@ -1,6 +1,7 @@
 """Shared fixtures for the Fcle Auth API tests."""
 
 from collections.abc import Iterator
+from http import HTTPStatus
 from uuid import uuid4
 
 import pytest
@@ -47,3 +48,16 @@ def signup_payload(unique_email: str) -> dict[str, str]:
         'email': unique_email,
         'lang': 'en',
     }
+
+
+@pytest.fixture()
+def registered_user(
+    api_session: requests.Session,
+    base_url: str,
+    signup_payload: dict[str, str],
+) -> str:
+    """Register a new user and return the email address."""
+    url = f'{base_url}/api/Auth/signup'
+    response = api_session.post(url, json=signup_payload)
+    assert response.status_code == HTTPStatus.OK
+    return signup_payload['email']
