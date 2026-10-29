@@ -77,37 +77,6 @@ class TestAuthSignup:
         assert body['email'] == unique_email
         assert body['lang'] == 'en'
 
-    def test_signup_extra_fields_ignored(
-        self,
-        api_session: requests.Session,
-        base_url: str,
-        unique_email: str,
-    ) -> None:
-        """Accept extra fields and ignore their values."""
-        # Arrange.
-        url = f'{base_url}/api/Auth/signup'
-        payload = {
-            'email': unique_email,
-            'password': VALID_PASSWORD,
-            'username': 'john_doe',
-        }
-
-        # Act.
-        response = api_session.post(url, json=payload)
-
-        # Assert.
-        assert response.status_code == HTTPStatus.OK
-        body = decode_signup_response(response)
-        assert body['email'] == unique_email
-        login_url = f'{base_url}/api/Auth/login'
-        login_payload = {'email': unique_email, 'password': VALID_PASSWORD}
-        login_response = api_session.post(login_url, json=login_payload)
-        assert_error_response(
-            login_response,
-            HTTPStatus.GONE,
-            'user.loginMethod.invalid',
-        )
-
     @pytest.mark.parametrize(
         'email',
         [

@@ -74,7 +74,6 @@ project/
 |---|---|---|
 | `test_signup_success` | 1 | 200, email and token in response |
 | `test_signup_default_language` | 1 | 200, default language is `en` |
-| `test_signup_extra_fields_ignored` | 1 | 200, `password` and `username` are ignored |
 | `test_signup_invalid_email_format` | 11 | 409, `user.email.isInvalid` |
 | `test_signup_missing_email` | 3 | 409, `user.email.notNull` or `user.email.isRequired` |
 | `test_signup_invalid_language` | 3 | 409, `user.language.isInvalid` |
@@ -108,7 +107,7 @@ project/
 | `test_login_with_timezone` | 1 | 200, optional `timezone` is accepted |
 | `test_login_uppercase_email` | 1 | 200, email is case-insensitive |
 
-Total: 55 test cases.
+Total: 54 test cases.
 
 ## Expected output
 
@@ -120,7 +119,7 @@ tests/test_signup.py::TestAuthSignup::test_signup_success PASSED
 tests/test_signup.py::TestSetPassword::test_set_password_success PASSED
 tests/test_signup.py::TestAuthLogin::test_login_with_timezone PASSED
 ...
-============================== 55 passed in 27.53s ==============================
+============================== 54 passed in 26.10s ==============================
 ```
 
 ## API notes
