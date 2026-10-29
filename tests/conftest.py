@@ -8,6 +8,7 @@ import requests
 from faker import Faker
 
 BASE_URL = 'https://automation.tivaliclub.com/fcle'
+EMAIL_SUFFIX_LENGTH = 8
 
 fake = Faker()
 
@@ -35,7 +36,8 @@ def api_session() -> Iterator[requests.Session]:
 @pytest.fixture()
 def unique_email() -> str:
     """Return a unique email address."""
-    return f'{fake.unique.user_name()}.{uuid4().hex[:8]}@example.com'
+    suffix = uuid4().hex[:EMAIL_SUFFIX_LENGTH]
+    return f'{fake.unique.user_name()}.{suffix}@example.com'
 
 
 @pytest.fixture()
