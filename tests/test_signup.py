@@ -238,13 +238,15 @@ class TestAuthSignup:
         self,
         api_session: requests.Session,
         base_url: str,
-        registered_user: str,
+        signed_up_user: dict[str, str],
         uppercase: bool,
     ) -> None:
         """Reject a second signup for an already registered email."""
         # Arrange.
         url = f'{base_url}/api/Auth/signup'
-        email = registered_user.upper() if uppercase else registered_user
+        email = signed_up_user['email']
+        if uppercase:
+            email = email.upper()
         payload = {'email': email}
 
         # Act.
@@ -256,4 +258,4 @@ class TestAuthSignup:
             HTTPStatus.TOO_MANY_REQUESTS,
             'user.signup.resetTokenSent',
         )
-        assert body['error']['values']['email'] == registered_user
+        assert body['error']['values']['email'] == signed_up_user['email']

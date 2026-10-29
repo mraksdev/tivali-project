@@ -1,5 +1,6 @@
 """Shared fixtures for the Fcle Auth API tests."""
 
+import json
 from collections.abc import Iterator
 from http import HTTPStatus
 from uuid import uuid4
@@ -9,7 +10,7 @@ import requests
 from faker import Faker
 
 BASE_URL = 'https://automation.tivaliclub.com/fcle'
-EMAIL_SUFFIX_LENGTH = 8
+UNIQUE_SUFFIX_LENGTH = 8
 
 fake = Faker()
 
@@ -37,8 +38,15 @@ def api_session() -> Iterator[requests.Session]:
 @pytest.fixture()
 def unique_email() -> str:
     """Return a unique email address."""
-    suffix = uuid4().hex[:EMAIL_SUFFIX_LENGTH]
+    suffix = uuid4().hex[:UNIQUE_SUFFIX_LENGTH]
     return f'{fake.unique.user_name()}.{suffix}@example.com'
+
+
+@pytest.fixture()
+def unique_nickname() -> str:
+    """Return a unique nickname."""
+    suffix = uuid4().hex[:UNIQUE_SUFFIX_LENGTH]
+    return f'{fake.unique.user_name()}.{suffix}'
 
 
 @pytest.fixture()
@@ -51,13 +59,14 @@ def signup_payload(unique_email: str) -> dict[str, str]:
 
 
 @pytest.fixture()
-def registered_user(
+def signed_up_user(
     api_session: requests.Session,
     base_url: str,
     signup_payload: dict[str, str],
-) -> str:
-    """Register a new user and return the email address."""
+) -> dict[str, str]:
+    """Register a new user and return the email and signup token."""
     url = f'{base_url}/api/Auth/signup'
     response = api_session.post(url, json=signup_payload)
     assert response.status_code == HTTPStatus.OK
-    return signup_payload['email']
+    body = json.loads(response.json())
+    return {'email': body['email'], 'token': body['token']}
